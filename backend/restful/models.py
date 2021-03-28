@@ -51,6 +51,14 @@ class Courier(models.Model):
     def get_carrying(self):
         return self.carrying_map[self.type]
 
+    def get_dict(self):
+        return {
+            'courier_id': self.external_id,
+            'courier_type': self.type.lower(),
+            'regions': self.regions,
+            'working_hours': [whours.get_string() for whours in self.working_hours.all()]
+        }
+
 
 class WorkingHours(Hours):
     courier = models.ForeignKey(Courier, on_delete=models.CASCADE, blank=False, related_name='working_hours')
