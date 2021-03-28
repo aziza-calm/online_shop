@@ -42,6 +42,15 @@ class Courier(models.Model):
     )
     regions = ArrayField(models.IntegerField(), blank=False)
 
+    carrying_map = {
+        FOOT: 10,
+        BIKE: 15,
+        CAR: 50,
+    }
+
+    def get_carrying(self):
+        return self.carrying_map[self.type]
+
 
 class WorkingHours(Hours):
     courier = models.ForeignKey(Courier, on_delete=models.CASCADE, blank=False, related_name='working_hours')
