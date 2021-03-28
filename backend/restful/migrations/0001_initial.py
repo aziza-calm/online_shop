@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('external_id', models.IntegerField(db_index=True)),
-                ('type', models.CharField(choices=[('FOOT', 'Пеший'), ('BIKE', 'Велокурьер'), ('CAR', 'Курьер на автомобиле')], max_length=100)),
+                ('type', models.CharField(choices=[('foot', 'Пеший'), ('bike', 'Велокурьер'), ('car', 'Курьер на автомобиле')], max_length=100)),
                 ('regions', django.contrib.postgres.fields.ArrayField(base_field=models.IntegerField(), size=None)),
             ],
         ),

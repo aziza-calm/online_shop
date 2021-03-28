@@ -1,9 +1,12 @@
 from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Avg, Min, Sum
+import json
+import dateutil.parser
 from .models import (
     Hours, Courier, Order, WorkingHours, DeliveryHours
 )
-from django.views.decorators.csrf import csrf_exempt
-import json
 from .utils import method_check, validate_dict
 
 
@@ -46,7 +49,7 @@ def post_couriers(request):
         couriers_to_create.append(
             Courier(
                 external_id=item['courier_id'],
-                type=item['courier_type'].upper(),
+                type=item['courier_type'],
                 regions=item['regions'],
             )
         )
@@ -77,9 +80,23 @@ def courier(request, external_id):
     except Courier.DoesNotExist:
         return JsonResponse({
             'error': 'Courier with id {} does not exist'.format(external_id),
-        }, status=404)
+        }, status=400)
     if request.method == 'GET':
-        return JsonResponse(courier.get_dict(), status=200)
+        response = courier.get_dict()
+        finished = Order.objects.filter(
+            assignee=courier, delivery_time__isnull=False
+        )
+        min_avg_time = finished.annotate(
+            avg_time=Avg('delivery_time')
+        ).aggregate(Min('avg_time'))['avg_time__min']
+        if min_avg_time and min_avg_time > 0:
+            response['rating'] = (60*60 - min(min_avg_time, 60*60))/(60*60) * 5
+        earnings = finished.aggregate(earnings=Sum('payment'))['earnings']
+        if earnings:
+            response['earnings'] = earnings
+        else:
+            response['earnings'] = 0
+        return JsonResponse(response, status=200)
     else:
         try:
             body = json.loads(request.body.decode())
@@ -92,16 +109,26 @@ def courier(request, external_id):
         'courier_type': str,
         'regions': list,
         'working_hours': list,
-    })
+    }, {})
     if len(errors) > 0:
         return JsonResponse({
             'validation_error': errors,
         }, status=400)
 
     if 'courier_type' in body:
-        courier.type = body['courier_type'].upper()
+        courier.type = body['courier_type']
+        for order in Order.objects.filter(
+                assignee=courier, delivery_time__isnull=True, weight__gt=courier.get_carrying()
+        ):
+            order.assignee = None
+            order.payment = None
     if 'regions' in body:
         courier.regions = body['regions']
+        for order in Order.objects.filter(
+                assignee=courier, delivery_time__isnull=True
+        ).exclude(region__in=courier.regions):
+            order.assignee = None
+            order.payment = None
     courier.save()
 
     if 'working_hours' in body:
@@ -116,8 +143,23 @@ def courier(request, external_id):
                 )
             )
         created_whours = WorkingHours.objects.bulk_create(whours_to_create)
+        for order in Order.objects.filter(
+                assignee=courier, delivery_time__isnull=True
+        ):
+            order_saved = False
+            for dhours in order.delivery_hours:
+                for whours in created_whours:
+                    if (
+                            (whours.start_timestamp < dhours.start_timestamp < whours.finish_timestamp) or
+                            (whours.start_timestamp < dhours.finish_timestamp < whours.finish_timestamp)
+                    ):
+                        order_saved = True
+                        break
+                if order_saved:
+                    break
+            if not order_saved:
+                order.delete()
 
-    # TODO: логика проверки имеющихся заказов
 
     return JsonResponse(courier.get_dict(), status=200)
 
@@ -141,7 +183,7 @@ def post_orders(request):
                 'region': int,
                 'delivery_hours': list,
             }, {}, {
-                'weight': lambda w: None if w >= 0.01 and w <= 50 else 'Incorrect weight'
+                'weight': lambda w: None if 0.01 <= w <= 50 else 'Incorrect weight'
             })
             if len(errors) > 0:
                 if 'order_id' in item:
@@ -184,3 +226,109 @@ def post_orders(request):
     return JsonResponse({
         'orders': [{'id': created_order.external_id} for created_order in created_orders],
     }, status=201)
+
+
+@csrf_exempt
+@method_check(['POST'])
+def assign(request):
+    try:
+        body = json.loads(request.body.decode())
+    except (json.decoder.JSONDecodeError, ValueError):
+        return JsonResponse({
+            'error': 'Unable to parse request body',
+        }, status=400)
+
+    try:
+        courier = Courier.objects.get(external_id=body['courier_id'])
+    except Courier.DoesNotExist:
+        return JsonResponse({
+            'error': 'Courier with id {} does not exist'.format(body['courier_id']),
+        }, status=400)
+
+    filtered_orders = Order.objects.filter(
+        weight__lte=courier.get_carrying(),
+        region__in=courier.regions,
+        assignee__isnull=True
+    )
+
+    order_ids = []
+    for working_hour in courier.working_hours.all():
+        order_ids.extend(list(DeliveryHours.objects.filter(
+            order__in=filtered_orders,
+            start_timestamp__lte=working_hour.start_timestamp,
+            finish_timestamp__gte=working_hour.start_timestamp
+        ).values_list('order__id', flat=True)))
+        order_ids.extend(list(DeliveryHours.objects.filter(
+            order__in=filtered_orders,
+            start_timestamp__lte=working_hour.finish_timestamp,
+            finish_timestamp__gte=working_hour.finish_timestamp
+        ).values_list('order__id', flat=True)))
+
+    acceptable_orders = Order.objects.filter(id__in=set(order_ids))
+
+    assign_time = timezone.now()
+    payment = courier.get_payment()
+    for order in acceptable_orders:
+        order.assignee = courier
+        order.payment = payment
+        order.save()
+
+    response = {
+        'orders': [{'id': order.external_id} for order in acceptable_orders]
+    }
+
+    if len(acceptable_orders) > 0:
+        courier.assign_time = assign_time
+        courier.save()
+        response['assign_time'] = assign_time.isoformat("T")
+
+    return JsonResponse(response, status=200)
+
+
+@csrf_exempt
+@method_check(['POST'])
+def complete(request):
+    try:
+        body = json.loads(request.body.decode())
+    except (json.decoder.JSONDecodeError, ValueError):
+        return JsonResponse({
+            'error': 'Unable to parse request body',
+        }, status=400)
+
+    try:
+        courier = Courier.objects.get(external_id=body['courier_id'])
+    except Courier.DoesNotExist:
+        return JsonResponse({
+            'error': 'Courier with id {} does not exist'.format(body['courier_id']),
+        }, status=400)
+
+    try:
+        order = Order.objects.get(external_id=body['order_id'])
+    except Courier.DoesNotExist:
+        return JsonResponse({
+            'error': 'Order with id {} does not exist'.format(body['courier_id']),
+        }, status=400)
+
+    if order.assignee != courier:
+        return JsonResponse({
+            'error': 'Order {} is not assigned to courier {}'.format(
+                body['order_id'], body['courier_id']),
+        }, status=400)
+
+    complete_time = dateutil.parser.isoparse(body['complete_time'])
+    if courier.complete_time:
+        start_time = courier.complete_time
+    else:
+        start_time = courier.assign_time
+    courier.complete_time = complete_time
+    courier.save()
+    order.delivery_time = (complete_time-start_time).total_seconds()
+    order.save()
+
+    return JsonResponse({'order_id': order.external_id}, status=200)
+
+
+
+
+
+
