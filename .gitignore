@@ -1,0 +1,22 @@
+# IDE
+.idea/
+
+# Log
+access.log
+
+# DB
+db/pgdata
+
+# Docker-compose
+docker-compose.override.yml
+
+# venv
+venv/
+
+# pyc
+*.pyc
+
+#media
+backend/media
+
+*.sqlite3
