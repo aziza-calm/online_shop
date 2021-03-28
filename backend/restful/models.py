@@ -36,6 +36,7 @@ class Courier(models.Model):
         (CAR, "Курьер на автомобиле")
     )
 
+    external_id = models.IntegerField(blank=False, db_index=True)
     type = models.CharField(
         max_length=100, choices=TYPE_CHOICES, blank=False
     )
@@ -47,6 +48,7 @@ class WorkingHours(Hours):
 
 
 class Order(models.Model):
+    external_id = models.IntegerField(blank=False, db_index=True)
     weight = models.FloatField(blank=False)
     region = models.IntegerField(blank=False)
 
