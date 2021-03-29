@@ -109,7 +109,9 @@ def courier(request, external_id):
         'courier_type': str,
         'regions': list,
         'working_hours': list,
-    }, {})
+    }, {
+        'courier_type': lambda type: None if type in [x[0] for x in Courier.TYPE_CHOICES] else 'Invalid courier type'
+    })
     if len(errors) > 0:
         return JsonResponse({
             'validation_error': errors,
