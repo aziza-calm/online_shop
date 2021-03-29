@@ -86,7 +86,7 @@ def courier(request, external_id):
         finished = Order.objects.filter(
             assignee=courier, delivery_time__isnull=False
         )
-        min_avg_time = finished.annotate(
+        min_avg_time = finished.values('region').annotate(
             avg_time=Avg('delivery_time')
         ).aggregate(Min('avg_time'))['avg_time__min']
         if min_avg_time and min_avg_time > 0:
