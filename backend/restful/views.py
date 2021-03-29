@@ -315,7 +315,7 @@ def complete(request):
 
     try:
         order = Order.objects.get(external_id=body['order_id'])
-    except Courier.DoesNotExist:
+    except Order.DoesNotExist:
         return JsonResponse({
             'error': 'Order with id {} does not exist'.format(body['courier_id']),
         }, status=400)
