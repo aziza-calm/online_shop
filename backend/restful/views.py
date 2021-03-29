@@ -269,6 +269,11 @@ def assign(request):
             start_timestamp__lte=working_hour.finish_timestamp,
             finish_timestamp__gte=working_hour.finish_timestamp
         ).values_list('order__id', flat=True)))
+        order_ids.extend(list(DeliveryHours.objects.filter(
+            order__in=filtered_orders,
+            start_timestamp__gte=working_hour.start_timestamp,
+            finish_timestamp__lte=working_hour.finish_timestamp
+        ).values_list('order__id', flat=True)))
 
     acceptable_orders = Order.objects.filter(id__in=set(order_ids))
 
