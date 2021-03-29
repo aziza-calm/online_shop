@@ -117,19 +117,22 @@ def courier(request, external_id):
 
     if 'courier_type' in body:
         courier.type = body['courier_type']
+        courier.save()
         for order in Order.objects.filter(
                 assignee=courier, delivery_time__isnull=True, weight__gt=courier.get_carrying()
         ):
             order.assignee = None
             order.payment = None
+            order.save()
     if 'regions' in body:
         courier.regions = body['regions']
+        courier.save()
         for order in Order.objects.filter(
                 assignee=courier, delivery_time__isnull=True
         ).exclude(region__in=courier.regions):
             order.assignee = None
             order.payment = None
-    courier.save()
+            order.save()
 
     if 'working_hours' in body:
         courier.working_hours.all().delete()
@@ -158,7 +161,9 @@ def courier(request, external_id):
                 if order_saved:
                     break
             if not order_saved:
-                order.delete()
+                order.assignee = None
+                order.payment = None
+                order.save()
 
     return JsonResponse(courier.get_dict(), status=200)
 
