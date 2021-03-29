@@ -36,11 +36,21 @@ services:
       - "5432:5432"
 ```
 
-### Запуск локального инстанса
+### Запуск
 Пример запуска:
 ```
 cd online_shop
 docker-compose up -d
 ```
 Запуска одного сервиса:
-`docker-compose up -d %service%`
+```
+docker-compose up -d %service%
+```
+Запуска тестов:
+```
+docker exec -it osh_backend bash
+```
+а затем 
+```
+python3 manage.py test
+```

@@ -160,7 +160,6 @@ def courier(request, external_id):
             if not order_saved:
                 order.delete()
 
-
     return JsonResponse(courier.get_dict(), status=200)
 
 
