@@ -1,12 +1,9 @@
-### Состав проекта
-Проект состоит из 2 сервисов -
-БД (postgresql), бекенд (django).
-Сервисы описаны в файлах docker-compose.yml и docker-compose.override.yml.
-Последний необходим для локальных настроек и находится в .gitignore.
+### Project components
+There are 2 services:
+DB (postgresql) and backend (Django).
+Services are described in docker-compose.yml file.
 
-### Предварительная настройка
-Перед первым запуском нужно создать docker-compose.override.yml в корне проекта.
-Пример настройки development-окружения:
+### Docker-compose example
 ```docker/compose
 version: '2.1'
 
@@ -36,21 +33,21 @@ services:
       - "5432:5432"
 ```
 
-### Запуск
-Пример запуска:
+### Run
+Run example:
 ```
 cd online_shop
 docker-compose up -d
 ```
-Запуска одного сервиса:
+Run one service:
 ```
 docker-compose up -d %service%
 ```
-Запуска тестов:
+Run tests:
 ```
 docker exec -it osh_backend bash
 ```
-а затем 
+and then:
 ```
 python3 manage.py test
 ```
