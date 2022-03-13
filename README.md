@@ -10,26 +10,19 @@ version: '2.1'
 services:
   backend:
     environment:
-      # Пароль БД, обязательная настройка
       - POSTGRES_PASSWORD=%password%
-      # Запуск django в debug-режиме
       - DEBUG=True
     ports:
-      # Доступ к сервису с хоста
       - "8080:8080"
     volumes:
-      # Возможность модифицировать код в контейнере
       - ./backend:/source
 
   db:
     environment:
-      # Пароль БД, обязательная настройка
       - POSTGRES_PASSWORD=%password%
     volumes:
-      # Постоянное хранение содержимого БД
       - ./db/pgdata:/var/lib/postgresql/data
     ports:
-      # Доступ к БД с хоста
       - "5432:5432"
 ```
 
